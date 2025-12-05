@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>PyLearn Pro IDE</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+
+    <style>
+        :root { --bg-dark: #1e1e1e; --bg-panel: #252526; --accent: #007acc; --text: #d4d4d4; --border: #333; }
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 15px; font-family: 'Segoe UI', sans-serif; background: #121212; color: var(--text); height: 100vh; overflow: hidden; }
+        
+        .app-container { display: flex; height: 100%; gap: 10px; }
+        
+        /* 侧边栏 */
+        .sidebar { width: 260px; background: var(--bg-panel); border: 1px solid var(--border); display: flex; flex-direction: column; }
+        .sidebar-header { padding: 10px 15px; border-bottom: 1px solid var(--border); font-weight: bold; display: flex; justify-content: space-between; align-items: center; background: #333; }
+        .problem-list { list-style: none; padding: 0; margin: 0; overflow-y: auto; flex: 1; }
+        .problem-list li { padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #333; border-left: 3px solid transparent; font-size: 13px; }
+        .problem-list li:hover { background: #37373d; }
+        .problem-list li.active { background: #2a2d2e; border-left-color: var(--accent); }
+        .meta-info { margin-bottom: 4px; display: flex; gap: 5px; flex-wrap: wrap; }
+        .tag { font-size: 10px; background: #3c3c3c; padding: 1px 5px; border-radius: 3px; color: #aaa; }
+        .diff-1 { color: #61bd4f; } .diff-5 { color: #c377e0; }
+
+        /* 左栏 */
+        .left-col { flex: 4; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+        .panel { background: var(--bg-panel); border: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+        .panel-header { padding: 8px 15px; background: #303031; font-weight: 600; border-bottom: 1px solid var(--border); font-size: 12px; color: #ccc; display: flex; justify-content: space-between; align-items: center; }
+        
+        .desc-panel { flex: 1; }
+        .scroll-content { flex: 1; overflow: auto; padding: 15px; }
+        .markdown-body { font-size: 13px; line-height: 1.6; color: #ccc; }
+        .markdown-body h1, .markdown-body h2 { border-bottom: 1px solid #444; padding-bottom: 5px; margin-top: 10px; font-size: 1.2em; color: white; }
+        .markdown-body pre { 
+            background: #1e1e1e; 
+            border: 1px solid #444; 
+            padding: 10px; 
+            border-radius: 6px; 
+            overflow-x: auto; 
+            font-family: 'Consolas', monospace;
+            position: relative;
+        }
+        
+        /* 增加一个 mac 风格的红黄绿小点装饰，增加高级感（可选） */
+        .markdown-body pre::before {
+            content: "● ● ●";
+            color: #555;
+            font-size: 10px;
+            position: absolute;
+            top: 5px;
+            left: 10px;
+            letter-spacing: 2px;
+        }
+        .markdown-body pre code {
+            display: block;
+            margin-top: 15px; /* 给上面的装饰留空间 */
+            background: transparent; /* 覆盖默认样式 */
+            color: #d4d4d4;
+            white-space: pre; /* 核心：保留换行符 */
+        }
+        .markdown-body code { background: #383838; padding: 2px 4px; border-radius: 3px; font-family: Consolas; color: #ce9178; }
+
+        .chat-panel { height: 35%; display: flex; flex-direction: column; border-top: 1px solid var(--border); }
+        .chat-history { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+        .msg-user { align-self: flex-end; background: #0e639c; padding: 6px 10px; border-radius: 4px; color: white; max-width: 90%; }
+        .msg-ai { align-self: flex-start; background: #333; padding: 6px 10px; border-radius: 4px; border: 1px solid #444; max-width: 95%; }
+        .input-area { padding: 8px; border-top: 1px solid var(--border); display: flex; gap: 8px; background: #2d2d2d; }
+
+        /* 右栏 */
+        .right-col { flex: 6; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+        .editor-container { flex: 2; background: #1e1e1e; position: relative; }
+        .monaco-wrapper { 
+            flex: 1; 
+            display: flex; 
+            overflow: hidden; 
+            position: relative; /* 确保定位准确 */
+        }
+        
+        #monaco-editor { 
+            flex: 1; 
+            height: 100%; 
+            min-width: 0; /* 防止内容撑开 flex 容器 */
+        } 
+        
+        #monaco-diff { 
+            flex: 1; 
+            height: 100%; 
+            display: none; 
+            border-left: 1px solid #444; 
+            min-width: 0; /* 防止内容撑开 flex 容器 */
+        }
+
+        .terminal-panel { height: 30%; background: #181818; font-family: 'Consolas', monospace; }
+        /* 核心修复：保留换行符 */
+        .terminal-content { padding: 10px; color: #ccc; white-space: pre-wrap; font-size: 12px; line-height: 1.4; word-wrap: break-word; }
+
+        button { cursor: pointer; border: none; padding: 4px 10px; border-radius: 2px; font-size: 11px; transition: 0.2s; }
+        button:hover { opacity: 0.9; }
+        .btn-green { background: #238636; color: white; }
+        .btn-orange { background: #d29922; color: white; }
+        .btn-blue { background: var(--accent); color: white; }
+        input[type="text"] { background: #3c3c3c; border: 1px solid #555; color: white; padding: 4px 8px; border-radius: 2px; flex: 1; outline: none; font-size: 12px; }
+        
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #252526; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <div class="sidebar">
+        <div class="sidebar-header"><span>📚 题库</span><a href="/admin" style="color:#aaa;text-decoration:none;font-size:12px">后台 ></a></div>
+        <ul class="problem-list">
+            {% for p in problems %}
+            <li onclick="loadProblem(this, {{ p.id }})">
+                <div class="meta-info"><span class="diff-{{ p.difficulty }}">Lv.{{ p.difficulty }}</span><span class="tag">{{ p.category }}</span></div>
+                <div style="font-weight:500">{{ p.title }}</div>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <div class="left-col">
+        <div class="panel desc-panel">
+            <div class="panel-header">📝 题目描述</div>
+            <div class="scroll-content markdown-body" id="desc-content"><h3>👈 请选择题目</h3></div>
+        </div>
+        <div class="panel chat-panel">
+            <div class="panel-header">🤖 AI 助教</div>
+            <div class="chat-history" id="chat-history"><div class="msg-ai">你好！我是你的 AI 编程助手。</div></div>
+            <div class="input-area">
+                <input type="text" id="chat-input" placeholder="有疑问？问我..." onkeydown="if(event.key==='Enter') sendChat()">
+                <button class="btn-blue" onclick="sendChat()">发送</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="right-col">
+        <div class="panel editor-container">
+            <div class="panel-header">
+                <span>🐍 main.py</span>
+                <div style="display:flex; gap:10px">
+                    <button class="btn-orange" onclick="toggleSolution()">👀 对比答案</button>
+                    <button class="btn-green" onclick="runCode()">▶ 运行代码</button>
+                </div>
+            </div>
+            <div class="monaco-wrapper">
+                <div id="monaco-editor"></div>
+                <div id="monaco-diff"></div>
+            </div>
+        </div>
+        <div class="panel terminal-panel">
+            <div class="panel-header">
+                <span>🖥️ 终端输出</span>
+                <button id="btn-ask-ai" class="btn-blue" style="display:none;" onclick="askAI()">🧠 一键求助</button>
+            </div>
+            <div class="scroll-content terminal-content" id="output-text">等待运行...</div>
+        </div>
+    </div>
+</div>
+<script>
+    // --- 全局变量 ---
+    let editor = null;
+    let diffEditor = null;
+    let currentPid = null;
+    
+    // 暂存数据，防止编辑器未加载完时数据丢失
+    let pendingCode = "# 请在左侧选择题目...";
+    let pendingSolution = "";
+
+    // --- Monaco Editor 初始化 ---
+    require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }});
+    
+    require(['vs/editor/editor.main'], function() {
+        // 1. 创建主编辑器
+        editor = monaco.editor.create(document.getElementById('monaco-editor'), {
+            value: pendingCode, // 初始化时使用暂存的数据
+            language: 'python',
+            theme: 'vs-dark',
+            automaticLayout: true, // 自动适应容器大小
+            minimap: { enabled: false },
+            fontSize: 14,
+            scrollBeyondLastLine: false
+        });
+
+        // 2. 创建答案编辑器 (只读)
+        diffEditor = monaco.editor.create(document.getElementById('monaco-diff'), {
+            value: pendingSolution || "# 暂无参考答案", // 初始化时使用暂存的数据
+            language: 'python',
+            theme: 'vs-dark',
+            readOnly: true,
+            automaticLayout: true,
+            minimap: { enabled: false },
+            fontSize: 14,
+            lineNumbers: 'off',
+            scrollBeyondLastLine: false
+        });
+        
+        console.log("Monaco Editor 初始化完成");
+    });
+
+    // --- 业务逻辑 ---
+
+    async function loadProblem(li, pid) {
+        // UI 选中状态切换
+        document.querySelectorAll('.problem-list li').forEach(el => el.classList.remove('active'));
+        if(li) li.classList.add('active');
+        currentPid = pid;
+
+        // 重置界面
+        document.getElementById('output-text').innerText = "等待运行...";
+        document.getElementById('btn-ask-ai').style.display = 'none';
+        
+        // 默认关闭答案分屏
+        const diffEl = document.getElementById('monaco-diff');
+        diffEl.style.display = 'none';
+        if (editor) editor.layout(); 
+        
+        try {
+            const res = await fetch(`/problem/${pid}`);
+            const data = await res.json();
+            const detail = data.detail;
+
+            const fixedDesc = autoFixMarkdown(detail.description);
+
+            // 渲染 Markdown 描述
+            document.getElementById('desc-content').innerHTML = marked.parse(`## ${detail.title}\n${fixedDesc}`);
+            
+            // 更新暂存数据
+            pendingCode = "# 请在此处编写你的代码...\n\n";
+            pendingSolution = detail.sample_code || "# 暂无参考答案";
+
+            // 尝试更新编辑器 (如果编辑器已加载)
+            if (editor) editor.setValue(pendingCode);
+            if (diffEditor) diffEditor.setValue(pendingSolution);
+
+        } catch (e) { console.error(e); }
+    }
+
+    // --- 替换原有的 toggleSolution 函数 ---
+function toggleSolution() {
+    const diffEl = document.getElementById('monaco-diff');
+    const editorEl = document.getElementById('monaco-editor');
+    const btn = document.querySelector('.btn-orange'); // 获取按钮以改变状态文字
+    
+    if (diffEl.style.display === 'block') {
+        // --- 隐藏模式 ---
+        diffEl.style.display = 'none';
+        btn.innerText = "👀 对比答案";
+        // 关键：触发一次布局更新，让主编辑器占满 100%
+        if (editor) editor.layout();
+    } else {
+        // --- 对比模式 ---
+        diffEl.style.display = 'block';
+        btn.innerText = "❌ 关闭对比";
+        
+        // 确保 diffEditor 有内容
+        if (diffEditor && pendingSolution) {
+            diffEditor.setValue(pendingSolution);
+        }
+
+        // 关键：由于 DOM 渲染需要极短的时间，使用 setTimeout 确保 flex 布局生效后再 resize
+        setTimeout(() => {
+            if (editor) editor.layout();
+            if (diffEditor) diffEditor.layout();
+        }, 10);
+    }
+}
+
+    async function runCode() {
+        if(!currentPid) return alert("请先选题");
+        // 获取代码：优先从编辑器获取，如果还没加载完则用暂存数据
+        const code = editor ? editor.getValue() : pendingCode;
+        
+        const outDiv = document.getElementById('output-text');
+        outDiv.innerHTML = "<span style='color:yellow'>⏳ 编译运行中...</span>";
+        document.getElementById('btn-ask-ai').style.display = 'none';
+
+        try {
+            const res = await fetch('/run', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ problem_id: currentPid, code: code })
+            });
+            const result = await res.json();
+
+            let html = "";
+            if (result.error) {
+                html += `❌ Runtime Error:\n${result.error}`;
+                document.getElementById('btn-ask-ai').style.display = 'inline-block';
+            } else {
+                html += `标准输出:\n${result.output || "(无输出)"}\n-------------------\n`;
+                if (result.is_correct) {
+                    html += `✅ 恭喜！所有测试点通过！`; 
+                } else {
+                    // 这里 result.error 包含了 main.py 拼接的详细错误报告（第几组出错）
+                    html += `⚠️ ${result.error}`; 
+                }
+            }
+            outDiv.innerText = html;
+
+        } catch (e) { outDiv.innerText = "Error: " + e; }
+    }
+
+    async function sendChat(msgText = null, codeContext = "", errContext = "") {
+        const input = document.getElementById('chat-input');
+        const msg = msgText || input.value;
+        if(!msg) return;
+
+        const history = document.getElementById('chat-history');
+        history.innerHTML += `<div class="msg-user">${msg}</div>`;
+        if(!msgText) input.value = ""; 
+        history.scrollTop = history.scrollHeight;
+        
+        const loadId = "loading-" + Date.now();
+        history.innerHTML += `<div id="${loadId}" class="msg-ai">...</div>`;
+        history.scrollTop = history.scrollHeight;
+
+        try {
+            const res = await fetch('/chat', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ 
+                    problem_id: currentPid, 
+                    message: msg, 
+                    code_context: codeContext,
+                    error_context: errContext
+                })
+            });
+            const data = await res.json();
+            document.getElementById(loadId).remove();
+            history.innerHTML += `<div class="msg-ai markdown-body">${marked.parse(data.reply)}</div>`;
+            history.scrollTop = history.scrollHeight;
+        } catch(e) { console.error(e); }
+    }
+
+    function askAI() {
+        const code = editor ? editor.getValue() : "";
+        sendChat("我的代码报错了，请帮我分析。", code, document.getElementById('output-text').innerText);
+    }
+
+    function autoFixMarkdown(text) {
+        if (!text) return "";
+
+        // 1. 移除 AI 经常错误生成的孤立 "bash"、"text" 语言标记行
+        // 例子： **输入示例:** \n bash \n 3  ->  **输入示例:** \n 3
+        text = text.replace(/(?:\*\*|###)\s*(?:输入|Input|输出|Output).*?\n\s*(bash|text|python|shell)\s*\n/gi, (match, lang) => {
+            return match.replace(lang, "").replace(/\n\s*\n/, "\n"); 
+        });
+
+        // 2. 【核心】给裸奔的输入/输出内容加上代码块 (```)
+        // 正则逻辑：找到 "输入示例" 标题，捕获中间内容，直到遇到 "输出" 或 结尾
+        // 只有当内容没有被 ``` 包裹时才处理
+        const pattern = /((?:\*\*|###)\s*(?:输入|Input|样例输入).*?)\n((?!```)[\s\S]+?)(\n(?:\*\*|###)\s*(?:输出|Output|样例输出)|$)/gi;
+        
+        text = text.replace(pattern, (match, header, content, nextHeader) => {
+            // 去除首尾空白
+            let cleanContent = content.trim(); 
+            // 重新拼接：标题 + ```text + 内容 + ``` + 下一个标题
+            return `${header}\n\`\`\`text\n${cleanContent}\n\`\`\`\n${nextHeader}`;
+        });
+
+        // 3. 对 "输出" 部分也做同样的处理 (如果输出也是裸奔的)
+        const patternOut = /((?:\*\*|###)\s*(?:输出|Output|样例输出).*?)\n((?!```)[\s\S]+?)($)/gi;
+        text = text.replace(patternOut, (match, header, content, end) => {
+            let cleanContent = content.trim();
+            return `${header}\n\`\`\`text\n${cleanContent}\n\`\`\`\n${end}`;
+        });
+
+        return text;
+    }
+</script>

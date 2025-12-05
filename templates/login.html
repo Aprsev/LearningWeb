@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>系统登录 - PyLearn Admin</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #1e1e1e; color: #eee; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .login-box { background: #252526; padding: 40px; border-radius: 8px; border: 1px solid #333; width: 300px; }
+        h2 { text-align: center; margin-top: 0; }
+        input { width: 100%; padding: 10px; margin: 10px 0; background: #3c3c3c; border: 1px solid #555; color: white; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background: #007acc; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin-top: 10px; }
+        button:hover { background: #0063a5; }
+        .error { color: #ff6b6b; font-size: 13px; text-align: center; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="login-box">
+        <h2>🔒 管理员登录</h2>
+        {% if error %}
+        <div class="error">{{ error }}</div>
+        {% endif %}
+        <form action="/login_action" method="post">
+            <input type="text" name="username" placeholder="用户名" required>
+            <input type="password" name="password" placeholder="密码" required>
+            <button type="submit">登录</button>
+        </form>
+        <p style="text-align:center; font-size:12px; color:#666">默认账号: admin / 123456</p>
+    </div>
+</body>
+</html>

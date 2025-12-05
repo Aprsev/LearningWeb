@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+jinja2
+pydantic
+openai
+requests
+python-multipart
+itsdangerous
+bcrypt
+numpy
+pandas
+matplotlib
+scipy

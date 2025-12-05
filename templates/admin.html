@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>后台管理系统</title>
+    <style>
+        /* --- 全局样式 --- */
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; padding: 20px; max-width: 1100px; margin: 0 auto; color: #333; }
+        
+        /* 顶部导航 */
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .user-info { font-size: 14px; background: #fff; padding: 5px 15px; border-radius: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .user-info span { font-weight: bold; color: #333; margin-right: 10px; }
+        .user-info a { text-decoration: none; margin-left: 10px; }
+        
+        /* 卡片容器 */
+        .card { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        h2 { margin-top: 0; font-size: 18px; color: #2c3e50; border-left: 4px solid #007acc; padding-left: 10px; }
+        
+        /* 输入组 */
+        .input-group { display: flex; gap: 10px; margin-bottom: 15px; }
+        input[type="text"], input[type="number"], select { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 6px; outline: none; transition: 0.2s; }
+        input:focus { border-color: #007acc; }
+        
+        /* 按钮样式 */
+        button { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; color: white; background: #007acc; transition: 0.2s; font-size: 13px; }
+        button:hover { opacity: 0.9; transform: translateY(-1px); }
+        button:disabled { background: #ccc; cursor: not-allowed; transform: none; }
+        
+        .btn-green { background: #28a745; }
+        .btn-red { background: #e74c3c; padding: 5px 10px; }
+        .btn-purple { background: #8e44ad; }
+        .btn-orange { background: #f39c12; }
+        .btn-blue { background: #3498db; padding: 5px 10px; margin-right: 5px; }
+        
+        /* 日志框 */
+        #log-box { background: #1e1e1e; color: #4ec9b0; padding: 15px; height: 150px; overflow-y: auto; font-family: 'Consolas', monospace; border-radius: 6px; margin-top: 15px; font-size: 12px; line-height: 1.5; }
+        
+        /* 表格样式 */
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th { text-align: left; padding: 12px; background: #f8f9fa; color: #666; font-weight: 600; border-bottom: 2px solid #eee; }
+        td { padding: 12px; border-bottom: 1px solid #eee; vertical-align: middle; }
+        tr:hover { background: #f8f9fa; }
+        .tag { background: #e1ecf4; color: #39739d; padding: 2px 8px; border-radius: 12px; font-size: 12px; display: inline-block; }
+        .diff-tag { font-weight: bold; font-size: 12px; }
+
+        /* --- 通用弹窗样式 --- */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; }
+        .modal { background: white; border-radius: 8px; display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,0.2); animation: fadeIn 0.2s; max-height: 90vh; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .modal-header { padding: 15px 20px; border-bottom: 1px solid #eee; font-weight: bold; font-size: 16px; display: flex; justify-content: space-between; align-items: center; }
+        .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
+        .modal-footer { padding: 15px 20px; border-top: 1px solid #eee; display: flex; justify-content: flex-end; gap: 10px; background: #f9f9f9; border-radius: 0 0 8px 8px; }
+
+        /* 编辑表单 */
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #555; }
+        .form-group textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-family: 'Consolas', monospace; font-size: 13px; resize: vertical; box-sizing: border-box; }
+        
+        /* 文件选择列表 */
+        .file-list-table tr { cursor: pointer; }
+        .file-list-table tr:hover { background: #e6f7ff; }
+        .file-list-table input { cursor: pointer; }
+
+        /* 依赖列表 */
+        #missing-libs-list { background: #fff3cd; border: 1px solid #ffeeba; color: #856404; padding: 10px; border-radius: 4px; font-family: monospace; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1 style="margin:0; font-size:24px; display:flex; align-items:center; gap:10px;">
+            ⚙️ 题库管理控制台
+        </h1>
+        <div class="user-info">
+            <span>👤 {{ user }}</span>
+            <a href="/" style="color:#007acc;">返回 IDE</a>
+            <span style="color:#ddd; margin:0 5px;">|</span>
+            <a href="/logout" style="color:#e74c3c;">退出登录</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>📥 1. 导入新题目 (GitHub)</h2>
+        <div style="color:#666; font-size:13px; margin-bottom:10px;">输入公开仓库 URL，第一步仅扫描文件结构，第二步选择文件进行 AI 分析入库。</div>
+        <div class="input-group">
+            <input type="text" id="repo-url" placeholder="例如: https://github.com/username/python-exercises.git">
+            <button onclick="startScan()" id="btn-scan" style="width:150px;">📡 连接仓库</button>
+        </div>
+        <div id="log-box">系统准备就绪...</div>
+    </div>
+
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <h2>📚 现有题库 ({{ problems|length }})</h2>
+            <button class="btn-purple" onclick="startOrganize()">✨ AI 智能归类整理</button>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th width="50">ID</th>
+                    <th>标题</th>
+                    <th width="80">难度</th>
+                    <th>知识点</th>
+                    <th>来源</th>
+                    <th width="150">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in problems %}
+                <tr id="row-{{ p.id }}">
+                    <td>{{ p.id }}</td>
+                    <td style="font-weight:500">{{ p.title }}</td>
+                    <td><span class="diff-tag" style="color: {% if p.difficulty==1 %}#2ecc71{% elif p.difficulty==5 %}#e74c3c{% else %}#f39c12{% endif %}">Lv.{{ p.difficulty }}</span></td>
+                    <td><span class="tag">{{ p.category }}</span></td>
+                    <td style="font-size:12px; color:#999;">{{ p.source }}</td>
+                    <td>
+                        <button class="btn-blue" onclick='openEditModal({{ p|tojson }})'>✏️ 编辑</button>
+                        <button class="btn-red" onclick="deleteProblem({{ p.id }})">🗑️</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="modal-overlay" id="file-modal">
+        <div class="modal" style="width: 600px;">
+            <div class="modal-header">
+                <span>📝 选择要分析的文件</span>
+                <span id="select-count" style="font-size:12px; color:#666; font-weight:normal;">已选 0 个</span>
+            </div>
+            <div class="modal-body" style="height: 400px; padding:0;">
+                <table class="file-list-table" style="width:100%; margin:0;">
+                    <tbody id="file-list-body"></tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeModal('file-modal')" style="background:#888;">取消</button>
+                <button onclick="confirmProcess()" class="btn-green">🚀 开始 AI 分析入库</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="edit-modal">
+        <div class="modal" style="width: 800px;">
+            <div class="modal-header">
+                <span>✏️ 编辑题目详情</span>
+                <button onclick="closeModal('edit-modal')" style="background:transparent; color:#999; font-size:20px; padding:0;">×</button>
+            </div>
+            <div class="modal-body" style="height: 600px;">
+                <input type="hidden" id="edit-id">
+                
+                <div class="input-group">
+                    <div style="flex:2">
+                        <label style="display:block;margin-bottom:5px;font-weight:600">题目标题</label>
+                        <input type="text" id="edit-title">
+                    </div>
+                    <div style="flex:1">
+                        <label style="display:block;margin-bottom:5px;font-weight:600">难度 (1-5)</label>
+                        <input type="number" id="edit-difficulty" min="1" max="5">
+                    </div>
+                    <div style="flex:1">
+                        <label style="display:block;margin-bottom:5px;font-weight:600">时间限制(秒)</label>
+                        <input type="number" id="edit-timelimit" min="1" max="60" value="2">
+                    </div>
+                    <div style="flex:1">
+                        <label style="display:block;margin-bottom:5px;font-weight:600">知识点</label>
+                        <input type="text" id="edit-category">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>题目描述 (Markdown 格式)</label>
+                    <textarea id="edit-desc" style="height: 150px;"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label style="display:flex; justify-content:space-between; align-items:center;">
+                        参考代码 / 示例代码
+                        <button onclick="checkLibsInEdit(this)" class="btn-orange" style="font-size:11px; padding:3px 8px;">🛠️ 检查依赖库是否安装</button>
+                    </label>
+                    <textarea id="edit-code" style="height: 150px; color:#2c3e50;"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeModal('edit-modal')" style="background:#888;">取消</button>
+                <button onclick="saveEdit()" class="btn-green">💾 保存修改</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="lib-modal">
+        <div class="modal" style="width: 450px;">
+            <div class="modal-header" style="color:#d35400;">⚠️ 环境依赖缺失检测</div>
+            <div class="modal-body">
+                <p>检测到参考代码中使用了以下尚未安装的库：</p>
+                <div id="missing-libs-list"></div>
+                <p style="font-size:13px; color:#666;">是否立即在服务器(Docker)环境中安装这些库？</p>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeModal('lib-modal')" style="background:#888;">暂不安装</button>
+                <button onclick="installLibs()" class="btn-green">📦 确认并安装</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // ================= 全局状态 =================
+    let isProcessing = false;
+    let hasShownFileModal = false;
+    let currentMissingLibs = [];
+
+    // ================= 轮询与扫描 =================
+    setInterval(async () => {
+        try {
+            const res = await fetch('/admin/scan_status');
+            if(res.status === 401) {
+                // 如果未登录，跳转回登录页
+                window.location.href = '/login';
+                return; 
+            }
+            const data = await res.json();
+            
+            const btn = document.getElementById('btn-scan');
+            const logBox = document.getElementById('log-box');
+
+            // 更新日志
+            if(data.logs.length > 0) {
+                logBox.innerHTML = data.logs.join('<br>');
+                logBox.scrollTop = logBox.scrollHeight;
+            }
+
+            // 状态机
+            if (data.is_busy) {
+                isProcessing = true;
+                btn.disabled = true;
+                btn.innerText = "⏳ 处理中...";
+            } else {
+                btn.disabled = false;
+                btn.innerText = "📡 连接仓库";
+                
+                // 逻辑：如果不忙了 + 有文件 + 且是从忙碌状态变过来 + 还没弹窗 => 弹窗
+                if (isProcessing && data.files.length > 0 && data.has_repo && !hasShownFileModal) {
+                    showFileSelector(data.files);
+                    hasShownFileModal = true;
+                }
+                
+                // 如果任务完全结束（data.has_repo 会在 process_selected 后被置为 false）
+                if (!data.has_repo) {
+                    hasShownFileModal = false;
+                }
+                
+                isProcessing = false;
+            }
+        } catch(e) { console.error(e); }
+    }, 1500);
+
+    async function startScan() {
+        const url = document.getElementById('repo-url').value;
+        if(!url) return alert("请输入 URL");
+        hasShownFileModal = false; 
+        
+        await fetch('/admin/scan', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ url: url })
+        });
+    }
+
+    // ================= 文件选择逻辑 =================
+    function showFileSelector(files) {
+        const tbody = document.getElementById('file-list-body');
+        tbody.innerHTML = "";
+        
+        if(files.length === 0) {
+            tbody.innerHTML = "<tr><td style='text-align:center;padding:20px;color:#999'>未找到 .py 文件</td></tr>";
+        } else {
+            files.forEach((f) => {
+                tbody.innerHTML += `
+                    <tr onclick="toggleRow(this)">
+                        <td width="30"><input type="checkbox" class="file-chk" value="${f.index}" onchange="updateCount()"></td>
+                        <td style="font-family:monospace; font-size:13px">${f.path}</td>
+                    </tr>
+                `;
+            });
+        }
+        document.getElementById('file-modal').style.display = 'flex';
+        updateCount();
+    }
+
+    async function confirmProcess() {
+        const checkboxes = document.querySelectorAll('.file-chk:checked');
+        const indices = Array.from(checkboxes).map(c => parseInt(c.value));
+        
+        if(indices.length === 0) return alert("请至少选择一个文件");
+        
+        closeModal('file-modal');
+        
+        await fetch('/admin/import', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ indices: indices })
+        });
+        
+        document.getElementById('log-box').innerHTML += "<br>🚀 指令已发送，AI 正在分析选中的文件，请观察日志...";
+    }
+
+    // ================= 编辑与库管理逻辑 =================
+    
+    function openEditModal(problem) {
+        document.getElementById('edit-id').value = problem.id;
+        document.getElementById('edit-title').value = problem.title;
+        document.getElementById('edit-difficulty').value = problem.difficulty;
+        document.getElementById('edit-category').value = problem.category;
+        
+        // 异步获取完整详情
+        fetch(`/problem/${problem.id}`).then(r => r.json()).then(data => {
+            // 注意：API 返回结构是 { detail: {...} }
+            const detail = data.detail;
+            document.getElementById('edit-desc').value = detail.description || "";
+            document.getElementById('edit-code').value = detail.sample_code || "";
+            document.getElementById('edit-timelimit').value = detail.time_limit || 2;
+            document.getElementById('edit-modal').style.display = 'flex';
+        });
+    }
+
+    async function saveEdit() {
+        const data = {
+            id: document.getElementById('edit-id').value,
+            title: document.getElementById('edit-title').value,
+            difficulty: parseInt(document.getElementById('edit-difficulty').value),
+            category: document.getElementById('edit-category').value,
+            description: document.getElementById('edit-desc').value,
+            code: document.getElementById('edit-code').value,
+            time_limit: parseInt(document.getElementById('edit-timelimit').value)
+        };
+        await fetch('/admin/update_problem', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        alert("保存成功！");
+        location.reload();
+    }
+
+    async function checkLibsInEdit(btn) {
+        const code = document.getElementById('edit-code').value;
+        const originalText = btn.innerText;
+        btn.innerText = "⏳ 分析中...";
+        btn.disabled = true;
+        
+        try {
+            const res = await fetch('/admin/check_dependencies', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ problem_id: 0, code: code })
+            });
+            const data = await res.json();
+            
+            if (data.missing.length > 0) {
+                currentMissingLibs = data.missing;
+                document.getElementById('missing-libs-list').innerHTML = data.missing.map(l => `<div>📦 ${l}</div>`).join('');
+                document.getElementById('lib-modal').style.display = 'flex';
+            } else {
+                alert("✅ 检测通过：环境已包含所有依赖库。");
+            }
+        } catch(e) {
+            alert("检测出错: " + e);
+        } finally {
+            btn.innerText = originalText;
+            btn.disabled = false;
+        }
+    }
+
+    async function installLibs() {
+        const btn = document.querySelector('#lib-modal .btn-green');
+        btn.innerText = "⏳ 安装中...";
+        btn.disabled = true;
+        
+        for (const lib of currentMissingLibs) {
+            try {
+                const res = await fetch('/admin/install_lib', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ lib_name: lib })
+                });
+                const data = await res.json();
+                if(data.status !== 'ok') {
+                    alert(`❌ 安装 ${lib} 失败: ${data.msg}`);
+                }
+            } catch(e) { console.error(e); }
+        }
+        
+        alert("✅ 安装流程结束！");
+        closeModal('lib-modal');
+        btn.innerText = "📦 确认并安装";
+        btn.disabled = false;
+    }
+
+    // ================= 通用辅助函数 =================
+
+    async function startOrganize() {
+        if(!confirm("AI 将扫描全部题目并重新归纳知识点标签，确定吗？")) return;
+        await fetch('/admin/organize', {method: 'POST'});
+        alert("整理任务已启动，请留意日志。");
+    }
+
+    async function deleteProblem(pid) {
+        if(!confirm("确定要永久删除这道题目吗？")) return;
+        await fetch(`/admin/delete/${pid}`, {method: 'POST'});
+        document.getElementById(`row-${pid}`).remove();
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).style.display = 'none';
+    }
+
+    function updateCount() {
+        const count = document.querySelectorAll('.file-chk:checked').length;
+        document.getElementById('select-count').innerText = `已选中 ${count} 个文件`;
+    }
+
+    function toggleRow(tr) {
+        // 防止点击 checkbox 本身触发两次
+        if(event.target.type === 'checkbox') return;
+        
+        const chk = tr.querySelector('input');
+        chk.checked = !chk.checked;
+        updateCount();
+    }
+</script>
+
+</body>
+</html>
