@@ -126,4 +126,3 @@ uvicorn main:app --reload
 
   * **沙箱安全**：本项目使用 `subprocess` 进行基本的隔离，对于生产环境，建议将代码运行环境迁移至 Docker 容器中以获得更高的安全性。
   * **Windows 编码**：已内置 `PYTHONIOENCODING=utf-8` 环境变量配置，解决了 Windows 控制台下的中文乱码问题。
-
